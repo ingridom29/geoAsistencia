@@ -1,12 +1,16 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AmbientGlow } from '@/components/ambient-glow';
 import { AttendanceColors, AttendanceFonts } from '@/constants/attendance-theme';
-import { useAuth } from '@/hooks/use-auth';
+import { clearSavedDni, getSavedDni, lookupWorkerByDni, pinFromFecha, saveDni, useAuth, type Worker } from '@/hooks/use-auth';
 
 const PIN_LENGTH = 4;
+const ADMIN_PANEL_URL = process.env.EXPO_PUBLIC_ADMIN_PANEL_URL ?? 'https://sgds.pe/empleados/';
+
 const KEYPAD_ROWS: Array<Array<{ label: string; value: string } | null>> = [
   [
     { label: '1', value: '1' },
@@ -27,7 +31,132 @@ const KEYPAD_ROWS: Array<Array<{ label: string; value: string } | null>> = [
 ];
 
 export default function SignInScreen() {
-  const { worker, signIn } = useAuth();
+  const [selected, setSelected] = useState<Worker | null>(null);
+  const [booting, setBooting] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const savedDni = await getSavedDni();
+      if (!savedDni) {
+        if (!cancelled) setBooting(false);
+        return;
+      }
+      const result = await lookupWorkerByDni(savedDni);
+      if (cancelled) return;
+      if (result.ok) {
+        setSelected(result.worker);
+      } else if (result.reason !== 'network') {
+        // DNI no longer valid on this device (deactivated, role changed) — forget it.
+        await clearSavedDni();
+      }
+      setBooting(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleChangeUser() {
+    await clearSavedDni();
+    setSelected(null);
+  }
+
+  if (booting) {
+    return (
+      <View style={styles.screen}>
+        <AmbientGlow />
+        <SafeAreaView style={[styles.safeArea, styles.bootingContainer]}>
+          <ActivityIndicator color={AttendanceColors.accentTurquoise} />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (!selected) {
+    return (
+      <DniEntry
+        onFound={(worker) => {
+          saveDni(worker.dni);
+          setSelected(worker);
+        }}
+      />
+    );
+  }
+
+  return <PinEntry worker={selected} onBack={handleChangeUser} />;
+}
+
+function DniEntry({ onFound }: { onFound: (worker: Worker) => void }) {
+  const [dni, setDni] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleContinue() {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    const result = await lookupWorkerByDni(dni.trim());
+    setLoading(false);
+
+    if (result.ok) {
+      onFound(result.worker);
+      return;
+    }
+    if (result.reason === 'office_role') {
+      setError('Tu cargo usa el panel web de administración, no esta app.');
+    } else if (result.reason === 'network') {
+      setError('No se pudo conectar. Intenta de nuevo.');
+    } else {
+      setError('No encontramos ese DNI. Verifica e intenta de nuevo.');
+    }
+  }
+
+  return (
+    <View style={styles.screen}>
+      <AmbientGlow />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.pickerTopBlock}>
+          <Text style={styles.pickerTitle}>Ingresa tu DNI</Text>
+          <Text style={styles.pickerSubtitle}>Lo usamos para identificarte y marcar tu asistencia</Text>
+        </View>
+
+        <TextInput
+          value={dni}
+          onChangeText={(v) => {
+            setDni(v.replace(/[^0-9]/g, ''));
+            setError(null);
+          }}
+          placeholder="Número de DNI"
+          placeholderTextColor={AttendanceColors.textMuted}
+          keyboardType="number-pad"
+          maxLength={8}
+          style={[styles.dniInput, error && styles.dniInputError]}
+          onSubmitEditing={handleContinue}
+        />
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <Pressable
+          onPress={handleContinue}
+          disabled={dni.length === 0 || loading}
+          style={({ pressed }) => [styles.continueButton, (dni.length === 0 || loading) && styles.continueButtonDisabled, pressed && styles.pressed]}>
+          {loading ? (
+            <ActivityIndicator color={AttendanceColors.accentTurquoise} />
+          ) : (
+            <Text style={styles.continueButtonText}>Continuar</Text>
+          )}
+        </Pressable>
+
+        <Pressable onPress={() => Linking.openURL(ADMIN_PANEL_URL)} hitSlop={8} style={styles.adminLink}>
+          <Text style={styles.adminLinkText}>¿Eres del área administrativa? Ingresa aquí</Text>
+        </Pressable>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function PinEntry({ worker, onBack }: { worker: Worker; onBack: () => void }) {
+  const { signInAs } = useAuth();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const shake = useRef(new Animated.Value(0)).current;
@@ -61,8 +190,11 @@ export default function SignInScreen() {
     setPin(next);
 
     if (next.length === PIN_LENGTH) {
-      const success = signIn(next);
-      if (!success) {
+      const expectedPin = pinFromFecha(worker.fechaNacimiento);
+      const success = expectedPin !== '' && expectedPin === next;
+      if (success) {
+        signInAs(worker);
+      } else {
         setError(true);
         triggerShake();
         setTimeout(() => {
@@ -78,12 +210,14 @@ export default function SignInScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.glow, styles.glowOne]} />
-      <View style={[styles.glow, styles.glowTwo]} />
-      <View style={[styles.glow, styles.glowThree]} />
+      <AmbientGlow />
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topBlock}>
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+            <Text style={styles.backButtonText}>‹ Cambiar usuario</Text>
+          </Pressable>
+
           <LinearGradient
             colors={[AttendanceColors.avatarGradientStart, AttendanceColors.avatarGradientEnd]}
             start={{ x: 0.15, y: 0 }}
@@ -95,7 +229,6 @@ export default function SignInScreen() {
           <Text style={styles.name}>
             {worker.nombre} {worker.apellido}
           </Text>
-          <Text style={styles.obra}>{worker.obra}</Text>
 
           <Text style={styles.prompt}>
             {error ? 'PIN incorrecto, intenta de nuevo' : 'Ingresa tu PIN para marcar asistencia'}
@@ -111,7 +244,7 @@ export default function SignInScreen() {
                     styles.dot,
                     filled
                       ? {
-                          backgroundColor: error ? AttendanceColors.alert : AttendanceColors.accentAmber,
+                          backgroundColor: error ? AttendanceColors.alert : AttendanceColors.accentTurquoise,
                           transform: [{ scale: 1.1 }],
                         }
                       : {
@@ -158,41 +291,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AttendanceColors.screenBackground,
   },
-  glow: {
-    position: 'absolute',
-    borderRadius: 999,
-  },
-  glowOne: {
-    width: 380,
-    height: 380,
-    backgroundColor: AttendanceColors.glowAmberStrong,
-    opacity: 0.35,
-    top: -60,
-    left: -90,
-  },
-  glowTwo: {
-    width: 320,
-    height: 320,
-    backgroundColor: AttendanceColors.glowAmberDeep,
-    opacity: 0.3,
-    top: '22%',
-    right: -110,
-  },
-  glowThree: {
-    width: 300,
-    height: 300,
-    backgroundColor: AttendanceColors.glowBrown,
-    opacity: 0.25,
-    bottom: -40,
-    left: 20,
-  },
   safeArea: {
     flex: 1,
     paddingHorizontal: 26,
   },
+  bootingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topBlock: {
     alignItems: 'center',
-    paddingTop: 90,
+    paddingTop: 60,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 22,
+  },
+  backButtonText: {
+    color: AttendanceColors.textSecondary,
+    fontFamily: AttendanceFonts.plexMedium,
+    fontSize: 13,
   },
   avatar: {
     width: 64,
@@ -211,12 +329,6 @@ const styles = StyleSheet.create({
     color: AttendanceColors.textPrimary,
     fontFamily: AttendanceFonts.manropeBold,
     fontSize: 17,
-  },
-  obra: {
-    color: AttendanceColors.textSecondary,
-    fontFamily: AttendanceFonts.plexRegular,
-    fontSize: 12.5,
-    marginTop: 2,
     marginBottom: 26,
   },
   prompt: {
@@ -267,5 +379,73 @@ const styles = StyleSheet.create({
   keyBackspace: {
     color: AttendanceColors.textSecondary,
     fontSize: 20,
+  },
+  pickerTopBlock: {
+    alignItems: 'center',
+    paddingTop: 90,
+    marginBottom: 30,
+  },
+  pickerTitle: {
+    color: AttendanceColors.textPrimary,
+    fontFamily: AttendanceFonts.manropeExtraBold,
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  pickerSubtitle: {
+    color: AttendanceColors.textMuted,
+    fontFamily: AttendanceFonts.plexRegular,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  dniInput: {
+    backgroundColor: AttendanceColors.glassBackground,
+    borderWidth: 1,
+    borderColor: AttendanceColors.glassBorder,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    color: AttendanceColors.textPrimary,
+    fontFamily: AttendanceFonts.manropeBold,
+    fontSize: 20,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  dniInputError: {
+    borderColor: AttendanceColors.alert,
+  },
+  errorText: {
+    color: AttendanceColors.alert,
+    fontFamily: AttendanceFonts.plexRegular,
+    fontSize: 12.5,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  continueButton: {
+    backgroundColor: `${AttendanceColors.accentTurquoise}26`,
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  continueButtonDisabled: {
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: AttendanceColors.accentTurquoise,
+    fontFamily: AttendanceFonts.plexSemiBold,
+    fontSize: 15,
+  },
+  adminLink: {
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  adminLinkText: {
+    color: AttendanceColors.textMuted,
+    fontFamily: AttendanceFonts.plexMedium,
+    fontSize: 12.5,
+    textDecorationLine: 'underline',
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

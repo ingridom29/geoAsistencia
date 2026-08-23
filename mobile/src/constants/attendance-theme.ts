@@ -1,16 +1,16 @@
 // Design tokens from design_handoff_asistencia_app/README.md, converted from oklch to hex/rgba
 // because React Native's style engine does not parse oklch().
 export const AttendanceColors = {
-  screenBackground: '#17130F',
-  glowAmberStrong: 'rgba(217,121,58,0.6)',
-  glowAmberDeep: 'rgba(168,69,43,0.5)',
-  glowBrown: 'rgba(110,75,46,0.4)',
+  screenBackground: '#081A33',
+  glowTurquoiseStrong: 'rgba(11,111,184,0.55)',
+  glowTurquoiseDeep: 'rgba(21,74,122,0.5)',
+  glowTeal: 'rgba(16,50,86,0.45)',
 
-  avatarGradientStart: '#C98A4A',
-  avatarGradientEnd: '#96502C',
+  avatarGradientStart: '#0B6FB8',
+  avatarGradientEnd: '#154A7A',
 
   accentAmber: '#F2A968',
-  accentTurquoise: '#6FCFDD',
+  accentTurquoise: '#0B6FB8',
   success: '#74CB93',
   alert: '#E2694A',
 

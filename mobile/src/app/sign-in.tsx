@@ -1,5 +1,4 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Linking from 'expo-linking';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +8,6 @@ import { AttendanceColors, AttendanceFonts } from '@/constants/attendance-theme'
 import { clearSavedDni, getSavedDni, lookupWorkerByDni, pinFromFecha, saveDni, useAuth, type Worker } from '@/hooks/use-auth';
 
 const PIN_LENGTH = 4;
-const ADMIN_PANEL_URL = process.env.EXPO_PUBLIC_ADMIN_PANEL_URL ?? 'https://sgds.pe/empleados/';
 
 const KEYPAD_ROWS: Array<Array<{ label: string; value: string } | null>> = [
   [
@@ -145,10 +143,6 @@ function DniEntry({ onFound }: { onFound: (worker: Worker) => void }) {
           ) : (
             <Text style={styles.continueButtonText}>Continuar</Text>
           )}
-        </Pressable>
-
-        <Pressable onPress={() => Linking.openURL(ADMIN_PANEL_URL)} hitSlop={8} style={styles.adminLink}>
-          <Text style={styles.adminLinkText}>¿Eres del área administrativa? Ingresa aquí</Text>
         </Pressable>
       </SafeAreaView>
     </View>
@@ -434,16 +428,6 @@ const styles = StyleSheet.create({
     color: AttendanceColors.accentTurquoise,
     fontFamily: AttendanceFonts.plexSemiBold,
     fontSize: 15,
-  },
-  adminLink: {
-    alignItems: 'center',
-    marginTop: 22,
-  },
-  adminLinkText: {
-    color: AttendanceColors.textMuted,
-    fontFamily: AttendanceFonts.plexMedium,
-    fontSize: 12.5,
-    textDecorationLine: 'underline',
   },
   pressed: {
     opacity: 0.7,

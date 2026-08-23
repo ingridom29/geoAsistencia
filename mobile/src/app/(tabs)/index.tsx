@@ -243,7 +243,7 @@ export default function HomeScreen() {
   const glowOpacity = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.55] });
   const glowScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
 
-  const statusText = checkedOut ? 'Jornada completa' : checkedIn ? 'Presente en obra' : 'Sin marcar hoy';
+  const statusText = checkedOut ? 'Jornada completa' : checkedIn ? 'Ubicación registrada' : 'Sin marcar hoy';
   const buttonLabel = working
     ? 'Guardando…'
     : checkedOut

@@ -81,14 +81,20 @@ export default function HistorialScreen() {
 
     setError(!!queryError);
     const porFecha = new Map((data ?? []).map((r) => [r.fecha, r]));
+    // Primer día, dentro de la ventana, en que el trabajador realmente marcó algo. Para alguien
+    // que trabaja hace años pero recién empezó a usar la app esta semana, su fecha_ingreso real
+    // no sirve de corte — lo que importa es desde cuándo existe un registro suyo en la app.
+    const fechasConRegistro = [...porFecha.keys()].sort();
+    const primeraFechaUsada = fechasConRegistro[0];
 
     setDias(
       ventana
         .filter((fecha) => {
           const tieneRegistro = porFecha.has(fecha);
           if (tieneRegistro) return true; // un registro real siempre se muestra, pase lo que pase
-          // Antes de su fecha de ingreso, el trabajador no existía en el sistema — no tiene sentido
-          // avisarle "no marcaste" por días previos a que empezara a usar la app.
+          // Antes de su primer marcado real (o de su fecha de ingreso, lo que sea más tarde), no
+          // tiene sentido avisarle "no marcaste" por días en los que todavía no usaba la app.
+          if (!primeraFechaUsada || fecha < primeraFechaUsada) return false;
           if (worker.fechaIngreso && fecha < worker.fechaIngreso) return false;
           if (esDomingo(fecha)) return false; // domingo sin registro: normalmente no se trabaja
           if (fecha === hoyISO()) return false; // hoy aún no termina, sería prematuro avisar

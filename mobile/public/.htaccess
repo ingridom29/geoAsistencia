@@ -1,0 +1,14 @@
+# Sin esto, cualquier URL que no coincida con un archivo exacto (por ejemplo /asistencia/sign-in
+# en vez de /asistencia/sign-in.html) cae en la página de error del hosting, que ha mostrado
+# contenido malicioso inyectado. Esto la reemplaza por las páginas reales de la app.
+RewriteEngine On
+
+# Si pidieron una ruta sin extensión y existe el .html correspondiente, sírvelo.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME}\.html -f
+RewriteRule ^(.*)$ $1.html [L]
+
+# Cualquier otra ruta desconocida cae en la pantalla principal en vez del error del hosting.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]

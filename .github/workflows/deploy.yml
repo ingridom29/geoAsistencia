@@ -41,3 +41,9 @@ jobs:
           local-dir: mobile/dist/
           server-dir: /asistencia/
           security: strict
+          # El export de Expo mete las fuentes bajo assets/node_modules/... (es solo el nombre de
+          # la carpeta, no dependencias reales) — sin esto, la exclusión por defecto de node_modules
+          # de esta acción se las come y las fuentes quedan en 404.
+          exclude: |
+            **/.git*
+            **/.git*/**

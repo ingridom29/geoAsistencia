@@ -16,6 +16,7 @@ import {
   minutosTarde,
   TOLERANCIA_TARDANZA_MIN,
 } from '@/lib/asistencia';
+import { getDeviceId } from '@/lib/device';
 import { distanciaMetros } from '@/lib/geo';
 import { supabase } from '@/lib/supabase';
 
@@ -144,7 +145,7 @@ export default function HomeScreen() {
     } = await supabase.auth.getUser();
 
     const obraSeleccionada = obras.find((o) => o.id === selectedObraId);
-    const ubicacion = await obtenerUbicacion();
+    const [ubicacion, deviceId] = await Promise.all([obtenerUbicacion(), getDeviceId()]);
     let fueraDeRango = false;
     if (!ubicacion) {
       fueraDeRango = true;
@@ -166,6 +167,7 @@ export default function HomeScreen() {
         lat_entrada: ubicacion?.lat ?? null,
         lng_entrada: ubicacion?.lng ?? null,
         fuera_de_rango: fueraDeRango,
+        device_id: deviceId,
       },
       { onConflict: 'empleado_id,fecha' },
     );

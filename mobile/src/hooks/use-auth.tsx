@@ -36,6 +36,7 @@ export type Worker = {
   cargo: string;
   iniciales: string;
   fechaNacimiento: string;
+  fechaIngreso: string | null;
 };
 
 // A worker's PIN is always the first 4 digits of their birthday, DDMM (29 de abril -> "2904").
@@ -54,7 +55,7 @@ type DniLookupResult =
 export async function lookupWorkerByDni(dni: string): Promise<DniLookupResult> {
   const { data, error } = await supabase
     .from('empleados')
-    .select('id, dni, nombres, apellido_paterno, cargo, fecha_nacimiento')
+    .select('id, dni, nombres, apellido_paterno, cargo, fecha_nacimiento, fecha_ingreso')
     .eq('dni', dni)
     .eq('activo', true)
     .maybeSingle();
@@ -73,6 +74,7 @@ export async function lookupWorkerByDni(dni: string): Promise<DniLookupResult> {
       cargo: data.cargo,
       iniciales: `${(data.nombres ?? '')[0] ?? ''}${(data.apellido_paterno ?? '')[0] ?? ''}`.toUpperCase(),
       fechaNacimiento: data.fecha_nacimiento,
+      fechaIngreso: data.fecha_ingreso,
     },
   };
 }

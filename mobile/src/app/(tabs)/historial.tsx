@@ -84,9 +84,16 @@ export default function HistorialScreen() {
 
     setDias(
       ventana
-        // Los domingos solo se muestran si de verdad hay un registro ese día (a veces sí toca trabajar).
-        // Hoy se omite si todavía no hay nada marcado — el día aún no terminó, sería prematuro avisar.
-        .filter((fecha) => (!esDomingo(fecha) || porFecha.has(fecha)) && (fecha !== hoyISO() || porFecha.has(fecha)))
+        .filter((fecha) => {
+          const tieneRegistro = porFecha.has(fecha);
+          if (tieneRegistro) return true; // un registro real siempre se muestra, pase lo que pase
+          // Antes de su fecha de ingreso, el trabajador no existía en el sistema — no tiene sentido
+          // avisarle "no marcaste" por días previos a que empezara a usar la app.
+          if (worker.fechaIngreso && fecha < worker.fechaIngreso) return false;
+          if (esDomingo(fecha)) return false; // domingo sin registro: normalmente no se trabaja
+          if (fecha === hoyISO()) return false; // hoy aún no termina, sería prematuro avisar
+          return true;
+        })
         .map((fecha) => {
           const r = porFecha.get(fecha);
           if (!r) {

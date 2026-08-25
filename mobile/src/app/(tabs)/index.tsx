@@ -20,16 +20,17 @@ import { getDeviceId } from '@/lib/device';
 import { distanciaMetros } from '@/lib/geo';
 import { supabase } from '@/lib/supabase';
 
-// Best-effort: si el permiso o el GPS fallan, devuelve null y se sigue permitiendo marcar
-// (la validación de ubicación es informativa para el admin, no un bloqueo al trabajador).
-async function obtenerUbicacion(): Promise<{ lat: number; lng: number } | null> {
+// La ubicación es obligatoria para marcar llegada: sin permiso o sin GPS, no se deja continuar.
+type ResultadoUbicacion = { ok: true; lat: number; lng: number } | { ok: false; motivo: 'permiso' | 'gps' };
+
+async function obtenerUbicacion(): Promise<ResultadoUbicacion> {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return null;
+    if (status !== 'granted') return { ok: false, motivo: 'permiso' };
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    return { ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude };
   } catch {
-    return null;
+    return { ok: false, motivo: 'gps' };
   }
 }
 
@@ -136,6 +137,17 @@ export default function HomeScreen() {
     }
     setWorking(true);
 
+    const [ubicacion, deviceId] = await Promise.all([obtenerUbicacion(), getDeviceId()]);
+    if (!ubicacion.ok) {
+      setWorking(false);
+      showToast(
+        ubicacion.motivo === 'permiso'
+          ? 'Activa el permiso de ubicación para poder marcar tu llegada'
+          : 'No se pudo obtener tu ubicación. Revisa tu GPS e intenta de nuevo',
+      );
+      return;
+    }
+
     const entrada = horaActual();
     const tarde = minutosTarde(entrada);
     const puntualidad = tarde > TOLERANCIA_TARDANZA_MIN ? 'tarde' : 'a_tiempo';
@@ -145,11 +157,8 @@ export default function HomeScreen() {
     } = await supabase.auth.getUser();
 
     const obraSeleccionada = obras.find((o) => o.id === selectedObraId);
-    const [ubicacion, deviceId] = await Promise.all([obtenerUbicacion(), getDeviceId()]);
     let fueraDeRango = false;
-    if (!ubicacion) {
-      fueraDeRango = true;
-    } else if (obraSeleccionada?.latitud != null && obraSeleccionada?.longitud != null) {
+    if (obraSeleccionada?.latitud != null && obraSeleccionada?.longitud != null) {
       const distancia = distanciaMetros(ubicacion.lat, ubicacion.lng, obraSeleccionada.latitud, obraSeleccionada.longitud);
       fueraDeRango = distancia > obraSeleccionada.radioMetros;
     }
@@ -164,8 +173,8 @@ export default function HomeScreen() {
         hora_entrada: entrada,
         nota,
         registrado_por: user?.id ?? null,
-        lat_entrada: ubicacion?.lat ?? null,
-        lng_entrada: ubicacion?.lng ?? null,
+        lat_entrada: ubicacion.lat,
+        lng_entrada: ubicacion.lng,
         fuera_de_rango: fueraDeRango,
         device_id: deviceId,
       },

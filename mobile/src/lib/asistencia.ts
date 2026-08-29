@@ -1,6 +1,6 @@
 export const HORA_ENTRADA_ESPERADA = '07:30';
 export const TOLERANCIA_TARDANZA_MIN = 10;
-export const HORA_EXTRA_DESDE = '17:30';
+export const HORA_EXTRA_DESDE = '17:15';
 
 export function hoyISO() {
   return new Date().toISOString().split('T')[0];

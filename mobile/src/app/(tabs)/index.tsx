@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   formatHorasEnVivo,
   horaActual,
-  HORA_EXTRA_DESDE,
+  horaExtraDesdeHoy,
   hoyISO,
   minutosDesdeMedianoche,
   minutosTarde,
@@ -269,7 +269,7 @@ export default function HomeScreen() {
 
   const checkedIn = !!registro?.hora_entrada && !registro?.hora_salida;
   const checkedOut = !!registro?.hora_salida;
-  const salidaTardia = minutosDesdeMedianoche(horaActual()) >= minutosDesdeMedianoche(HORA_EXTRA_DESDE);
+  const salidaTardia = minutosDesdeMedianoche(horaActual()) >= minutosDesdeMedianoche(horaExtraDesdeHoy());
   const horasHoy = registro?.hora_entrada ? formatHorasEnVivo(registro.hora_entrada, registro.hora_salida ?? now) : '0h 00m 00s';
   const minutosTrabajadosHoy = registro?.hora_entrada ? minutosDesdeMedianoche(horaActual()) - minutosDesdeMedianoche(registro.hora_entrada) : 0;
   const salidaHabilitada = minutosTrabajadosHoy >= MIN_MINUTOS_ANTES_DE_SALIDA;
@@ -356,7 +356,7 @@ export default function HomeScreen() {
               {salidaTardia ? (
                 <>
                   <Text style={styles.confirmMessage}>
-                    Has salido más tarde de tu hora habitual ({HORA_EXTRA_DESDE}). Indica el motivo:
+                    Has salido más tarde de tu hora habitual ({horaExtraDesdeHoy()}). Indica el motivo:
                   </Text>
                   <TextInput
                     value={motivoSalida}

@@ -1,9 +1,16 @@
 export const HORA_ENTRADA_ESPERADA = '07:30';
 export const TOLERANCIA_TARDANZA_MIN = 10;
-export const HORA_EXTRA_DESDE = '17:00';
+export const HORA_EXTRA_DESDE_SEMANA = '17:00';
+// Los sábados la jornada termina a la 1pm, con 30 min de gracia hasta la 1:30pm.
+export const HORA_EXTRA_DESDE_SABADO = '13:30';
 
 export function hoyISO() {
   return new Date().toISOString().split('T')[0];
+}
+
+// Umbral de "salida tardía" (pide motivo) para el día de hoy: distinto los sábados.
+export function horaExtraDesdeHoy() {
+  return new Date().getDay() === 6 ? HORA_EXTRA_DESDE_SABADO : HORA_EXTRA_DESDE_SEMANA;
 }
 
 export function horaActual() {

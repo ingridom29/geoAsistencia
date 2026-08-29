@@ -211,11 +211,35 @@ export default function HomeScreen() {
   async function marcarSalida(notaSalida?: string) {
     if (working || !registro) return;
     setWorking(true);
+
+    const ubicacion = await obtenerUbicacion();
+    if (!ubicacion.ok) {
+      setWorking(false);
+      showToast(
+        ubicacion.motivo === 'permiso'
+          ? 'Activa el permiso de ubicación para poder marcar tu salida'
+          : 'No se pudo obtener tu ubicación. Revisa tu GPS e intenta de nuevo',
+      );
+      return;
+    }
+
     const salida = horaActual();
+    const obraSalida = obras.find((o) => o.id === registro.obra_id);
+    let fueraDeRangoSalida = false;
+    if (obraSalida?.latitud != null && obraSalida?.longitud != null) {
+      const distancia = distanciaMetros(ubicacion.lat, ubicacion.lng, obraSalida.latitud, obraSalida.longitud);
+      fueraDeRangoSalida = distancia > obraSalida.radioMetros;
+    }
 
     const { error } = await supabase
       .from('registro_diario_asistencia')
-      .update({ hora_salida: salida, ...(notaSalida ? { nota_salida: notaSalida } : {}) })
+      .update({
+        hora_salida: salida,
+        lat_salida: ubicacion.lat,
+        lng_salida: ubicacion.lng,
+        fuera_de_rango_salida: fueraDeRangoSalida,
+        ...(notaSalida ? { nota_salida: notaSalida } : {}),
+      })
       .eq('empleado_id', worker.id)
       .eq('fecha', hoyISO());
 

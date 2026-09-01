@@ -25,8 +25,8 @@ const CARGOS_OBRA = ['AYUDANTE', 'MAESTRO DE OBRA', 'PEÓN', 'VIGÍA'];
 
 // The mobile app authenticates to Supabase as this single shared account (not tied to any
 // worker) so it can satisfy RLS when writing attendance. Workers only ever see DNI + PIN.
-const APP_EMAIL = 'appmovil@sgds.pe';
-const APP_PASSWORD = 'GeoAsist_2026_SGDS!';
+const APP_EMAIL = process.env.EXPO_PUBLIC_APP_EMAIL ?? '';
+const APP_PASSWORD = process.env.EXPO_PUBLIC_APP_PASSWORD ?? '';
 
 export type Worker = {
   id: string;

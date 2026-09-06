@@ -1,4 +1,4 @@
-export const HORA_ENTRADA_ESPERADA = '07:30';
+export const HORA_ENTRADA_ESPERADA = '08:00';
 export const TOLERANCIA_TARDANZA_MIN = 10;
 export const HORA_EXTRA_DESDE_SEMANA = '17:00';
 // Los sábados la jornada termina a la 1pm, con 30 min de gracia hasta la 1:30pm.

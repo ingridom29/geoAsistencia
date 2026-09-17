@@ -89,12 +89,31 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Inicia sesión con la cuenta compartida de la app, solo si no hay ya una sesión guardada y
+// vigente — evita pisar una sesión válida con una nueva cada vez que la app se vuelve a abrir,
+// que es innecesario y, al compartir esta única cuenta entre todos los trabajadores, puede
+// invalidar sesiones de otros dispositivos si Supabase rota el refresh token en cada login.
+export async function ensureSession(): Promise<boolean> {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return true;
+  const { error } = await supabase.auth.signInWithPassword({ email: APP_EMAIL, password: APP_PASSWORD });
+  return !error;
+}
+
+// Fuerza un login nuevo sin importar lo que haya guardado localmente — para cuando una escritura
+// ya falló y hay que descartar la sesión (posiblemente revocada) y obtener una fresca antes de
+// reintentar, en vez de solo repetir la misma llamada con el mismo token muerto.
+export async function forzarReautenticacion(): Promise<boolean> {
+  const { error } = await supabase.auth.signInWithPassword({ email: APP_EMAIL, password: APP_PASSWORD });
+  return !error;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [worker, setWorker] = useState<Worker | null>(null);
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.signInWithPassword({ email: APP_EMAIL, password: APP_PASSWORD }).finally(() => {
+    ensureSession().finally(() => {
       setAppReady(true);
     });
   }, []);

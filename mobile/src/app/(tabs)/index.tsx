@@ -6,7 +6,7 @@ import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextI
 import { AmbientGlow } from '@/components/ambient-glow';
 import { AttendanceColors, AttendanceFonts } from '@/constants/attendance-theme';
 import { fetchObrasActivas, type Obra } from '@/constants/obras';
-import { useAuth } from '@/hooks/use-auth';
+import { forzarReautenticacion, useAuth } from '@/hooks/use-auth';
 import {
   formatHorasEnVivo,
   horaActual,
@@ -32,6 +32,18 @@ async function obtenerUbicacion(): Promise<ResultadoUbicacion> {
   } catch {
     return { ok: false, motivo: 'gps' };
   }
+}
+
+// La app comparte una sola cuenta de Supabase entre todos los trabajadores, y siempre se abre
+// sin saber si la sesión guardada en el teléfono sigue viva (puede llevar horas en segundo
+// plano). Si el primer intento de guardar falla, se pide una sesión nueva y se reintenta una
+// vez antes de darlo por perdido — así una sesión vencida no le bloquea marcar su salida.
+async function conReintentoDeSesion<T extends { error: unknown }>(intentar: () => PromiseLike<T>): Promise<T> {
+  const primerIntento = await intentar();
+  if (!primerIntento.error) return primerIntento;
+  const reautenticado = await forzarReautenticacion();
+  if (!reautenticado) return primerIntento;
+  return intentar();
 }
 
 const MIN_MINUTOS_ANTES_DE_SALIDA = 60;
@@ -163,22 +175,24 @@ export default function HomeScreen() {
       fueraDeRango = distancia > obraSeleccionada.radioMetros;
     }
 
-    const { error } = await supabase.from('registro_diario_asistencia').upsert(
-      {
-        empleado_id: worker.id,
-        fecha: hoyISO(),
-        obra_id: selectedObraId,
-        estado: 'asistio',
-        puntualidad,
-        hora_entrada: entrada,
-        nota,
-        registrado_por: user?.id ?? null,
-        lat_entrada: ubicacion.lat,
-        lng_entrada: ubicacion.lng,
-        fuera_de_rango: fueraDeRango,
-        device_id: deviceId,
-      },
-      { onConflict: 'empleado_id,fecha' },
+    const { error } = await conReintentoDeSesion(() =>
+      supabase.from('registro_diario_asistencia').upsert(
+        {
+          empleado_id: worker.id,
+          fecha: hoyISO(),
+          obra_id: selectedObraId,
+          estado: 'asistio',
+          puntualidad,
+          hora_entrada: entrada,
+          nota,
+          registrado_por: user?.id ?? null,
+          lat_entrada: ubicacion.lat,
+          lng_entrada: ubicacion.lng,
+          fuera_de_rango: fueraDeRango,
+          device_id: deviceId,
+        },
+        { onConflict: 'empleado_id,fecha' },
+      ),
     );
 
     setWorking(false);
@@ -231,17 +245,19 @@ export default function HomeScreen() {
       fueraDeRangoSalida = distancia > obraSalida.radioMetros;
     }
 
-    const { error } = await supabase
-      .from('registro_diario_asistencia')
-      .update({
-        hora_salida: salida,
-        lat_salida: ubicacion.lat,
-        lng_salida: ubicacion.lng,
-        fuera_de_rango_salida: fueraDeRangoSalida,
-        ...(notaSalida ? { nota_salida: notaSalida } : {}),
-      })
-      .eq('empleado_id', worker.id)
-      .eq('fecha', hoyISO());
+    const { error } = await conReintentoDeSesion(() =>
+      supabase
+        .from('registro_diario_asistencia')
+        .update({
+          hora_salida: salida,
+          lat_salida: ubicacion.lat,
+          lng_salida: ubicacion.lng,
+          fuera_de_rango_salida: fueraDeRangoSalida,
+          ...(notaSalida ? { nota_salida: notaSalida } : {}),
+        })
+        .eq('empleado_id', worker.id)
+        .eq('fecha', hoyISO()),
+    );
 
     setWorking(false);
     if (error) {

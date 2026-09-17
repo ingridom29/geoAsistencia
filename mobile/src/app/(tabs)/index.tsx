@@ -79,6 +79,9 @@ export default function HomeScreen() {
   const [selectedObraId, setSelectedObraId] = useState<string | null>(null);
   const [registro, setRegistro] = useState<Registro | null>(null);
   const [loading, setLoading] = useState(true);
+  // Si no se pudo confirmar si ya marcó hoy, no se debe ofrecer "Marcar llegada" — podría
+  // pisarle la entrada real (marcada hace horas) con la hora actual sin darse cuenta.
+  const [errorCargaRegistro, setErrorCargaRegistro] = useState(false);
   const [working, setWorking] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [obraPickerOpen, setObraPickerOpen] = useState(false);
@@ -112,16 +115,19 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!worker) return;
     (async () => {
-      const [obrasActivas, { data: registroHoy }] = await Promise.all([
+      const [obrasActivas, { data: registroHoy, error: errorRegistro }] = await Promise.all([
         fetchObrasActivas(),
-        supabase
-          .from('registro_diario_asistencia')
-          .select('obra_id, estado, puntualidad, hora_entrada, hora_salida, nota')
-          .eq('empleado_id', worker.id)
-          .eq('fecha', hoyISO())
-          .maybeSingle(),
+        conReintentoDeSesion(() =>
+          supabase
+            .from('registro_diario_asistencia')
+            .select('obra_id, estado, puntualidad, hora_entrada, hora_salida, nota')
+            .eq('empleado_id', worker.id)
+            .eq('fecha', hoyISO())
+            .maybeSingle(),
+        ),
       ]);
       setObras(obrasActivas);
+      setErrorCargaRegistro(!!errorRegistro);
       if (registroHoy) {
         setRegistro(registroHoy);
         setSelectedObraId(registroHoy.obra_id);

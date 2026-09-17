@@ -4,8 +4,16 @@ export const HORA_EXTRA_DESDE_SEMANA = '17:00';
 // Los sábados la jornada termina a la 1pm, con 30 min de gracia hasta la 1:30pm.
 export const HORA_EXTRA_DESDE_SABADO = '13:30';
 
+// OJO: nunca usar toISOString() aquí — convierte a UTC primero, así que desde las 7pm hora de
+// Perú (UTC-5) en adelante ya "es mañana" en UTC, y esto se desalinea con la fecha del registro
+// de la entrada de esa misma mañana. Los componentes locales (getFullYear/Month/Date) sí
+// respetan la zona horaria del teléfono, que es la que importa aquí.
 export function hoyISO() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const anio = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
 }
 
 // Umbral de "salida tardía" (pide motivo) para el día de hoy: distinto los sábados.
